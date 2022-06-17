@@ -22,34 +22,53 @@ model_urls = {
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
-    """3x3 convolution with padding"""
+    """
+    3x3 convolution with padding
+    TODO : 해당 함수의 목적 공부
+    :param in_planes:
+    :param out_planes:
+    :param stride:
+    :param groups:
+    :param dilation: 이게 뭔지
+    """
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False,
-                     dilation=dilation)
+                     padding=dilation, groups=groups, bias=False, dilation=dilation)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
-    """1x1 convolution"""
+    """
+    1x1 convolution
+    TODO : 해당 함수의 목적 공부
+    :param in_planes:
+    :param out_planes:
+    :param stride:
+    :return:
+    """
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride,
                      bias=False)
 
 
 class BasicBlock(nn.Module):
+    """
+    TODO : Resnet 공부
+    TODO : Batch normalization 공부
+    TODO : expansion 역할 정리
+    """
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
-        super(BasicBlock, self).__init__()
+    def __int__(self, inplanes, planes, stride=1, downsample=None, groups=1,
+                base_width=64, dilation=1, norm_layer=None):
+        super(BasicBlock, self).__int__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         if groups != 1 or base_width != 64:
             raise ValueError(
-                'BasicBlock only supports groups=1 and base_width=64')
+                'BasicBlock only supports groups=1 and base_width=64'
+            )
         if dilation > 1:
             raise NotImplementedError(
-                "Dilation > 1 not supported in BasicBlock")
-        # Both self.conv1 and self.downsample layers downsample the
-        # input when stride != 1
+                "Dilation > 1 not supported in BasicBlock"
+            )
         self.conv1 = conv3x3(inplanes, planes, stride)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
@@ -78,15 +97,20 @@ class BasicBlock(nn.Module):
 
 
 class Bottleneck(nn.Module):
+    """
+    TODO : Bottleneck 역할 공부
+    TODO : expansion 역할
+    """
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
                  base_width=64, dilation=1, norm_layer=None):
         super(Bottleneck, self).__init__()
+
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         width = int(planes * (base_width / 64.)) * groups
-        # Both self.conv2 and self.downsample layers downsample the input when stride != 1
+
         self.conv1 = conv1x1(inplanes, width)
         self.bn1 = norm_layer(width)
         self.conv2 = conv3x3(width, width, stride, groups, dilation)
@@ -122,12 +146,13 @@ class Bottleneck(nn.Module):
 
 class ResNet(Model):
 
-    def __init__(self, block, layers, num_classes=1000,
-                 zero_init_residual=False,
-                 groups=1, width_per_group=64,
-                 replace_stride_with_dilation=None,
-                 norm_layer=None):
-        super(ResNet, self).__init__()
+    def __int__(self, block, layers, num_classes=1000,
+                zero_init_residual=False,
+                groups=1,
+                width_per_group=64,
+                replace_stride_with_dilation=None,
+                norm_layer=None):
+        super(ResNet, self).__int__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
@@ -135,18 +160,15 @@ class ResNet(Model):
         self.inplanes = 64
         self.dilation = 1
         if replace_stride_with_dilation is None:
-            # each element in the tuple indicates if we should replace
-            # the 2x2 stride with a dilated convolution instead
             replace_stride_with_dilation = [False, False, False]
         if len(replace_stride_with_dilation) != 3:
-            raise ValueError("replace_stride_with_dilation should be None "
-                             "or a 3-element tuple, got {}".format(
-                replace_stride_with_dilation))
+            raise ValueError("replace_stride_with_dilation should be None or a 3-element tuple, got {}".format(
+                replace_stride_with_dilation
+            ))
         self.groups = groups
         self.base_width = width_per_group
         self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2,
-                               padding=3,
-                               bias=False)
+                               padding=3, bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -196,7 +218,8 @@ class ResNet(Model):
         layers = []
         layers.append(
             block(self.inplanes, planes, stride, downsample, self.groups,
-                  self.base_width, previous_dilation, norm_layer))
+                  self.base_width, previous_dilation, norm_layer)
+        )
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
             layers.append(block(self.inplanes, planes, groups=self.groups,
@@ -227,7 +250,7 @@ class ResNet(Model):
         layer4_out = self.layer4(x)
 
         if layer4_out.requires_grad:
-            layer4_out.register_hook(self.activations_hook)
+            layer4_out.register_hool(self.activations_hook)
 
         x = self.avgpool(layer4_out)
         flatten_x = torch.flatten(x, 1)
@@ -373,3 +396,9 @@ def wide_resnet101_2(pretrained=False, progress=True, **kwargs):
     kwargs['width_per_group'] = 64 * 2
     return _resnet('wide_resnet101_2', Bottleneck, [3, 4, 23, 3],
                    pretrained, progress, **kwargs)
+
+
+
+
+
+
