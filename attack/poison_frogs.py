@@ -1,76 +1,126 @@
-from ast import Not
-import os
-
-import matplotlib.pyplot as plt
-
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset, SubsetRandomSampler
 
-import torchvision
-from torchvision import datasets, models, transforms
-
-import numpy as np
-
-import cv2
-from torch.autograd import Variable
-
-from models.utils import training
-from models.vgg_face import VGG_16
-
-""" VGG 모델의 feature extractor 추출 함수 """
+from models.vgg import *
+from models.resnet import *
+from utils.images import img_read, img_to_tensor, make_torch_grid, tensor_imshow
 
 
-def vgg_feature_extractor(model, pretrained_path, output_classes=None):
-    feature_extractor = model
-    if output_classes is not None:
-        feature_extractor.fc8 = nn.Linear(4096, output_classes)
-    feature_extractor.load_state_dict(torch.load(pretrained_path))
-    # feature_extractor = model
-    feature_extractor.fc8 = nn.Identity()
+def feature_extractor(arch, model):
+    if arch == 'vggnet':
+        model.classifier = nn.Sequential(*list(model.classifier.children())[:-2])
 
-    for name, module in feature_extractor.named_modules():
-        for param in module.parameters():
-            param.requires_grad = True
+    elif arch == 'resnet':
+        model = nn.Sequential(*list(model.children())[:-2])
 
-    #     for name, param in feature_extractor.named_parameters():
-    #         print(name, param.requires_grad)
+    # assert not arch != 'vggnet' or 'resnet'
 
-    return feature_extractor
+    # model.eval()
+
+    return model
 
 
-""" Feature collision 수행을 위한 함수 """
-
-
-def poison(feature_extractor, x, base_instance, target_instance, beta_0=0.2, lr=0.0001):
-    """
-    attack_instance x
-    base_instance b
-    target_instance t
-    """
+def poison_frogs(extractor, attack_instance, base_instance, target_instance, beta_0=0.2, lr=0.0001):
 
     # x = x.to(device)
-    x.requires_grad = True
+    attack_instance.requires_grad = True  # base_instance로 부터 target_instance의 특성을 물려 받을 instance
 
-    feature_extractor.eval()
+    extractor.eval()
 
-    fs_t = feature_extractor(target_instance.view(1, *target_instance.shape)).detach()
-    fs_t.requires_grad = False
+    # target_instance의 feature 추출 & attack_instance의 feature 추출
+    target_instance_feature = extractor(target_instance.view(1, *target_instance.shape))[0].detach()  # target_instance의 feature를 추출하여 저장 (gradient 고정)
+    target_instance_feature.requires_grad = False  # .detach() 사용할 경우 gradient 전파 안되는 텐서를 생성
 
-    beta = beta_0 * 4096 ** 2 / (3 * 224 * 224) ** 2  # 7.4
+    attack_instance_feature = extractor(attack_instance.view(1, *attack_instance.shape))[0]
 
     # Forward Step:
-    dif = feature_extractor(x.view(1, *x.shape)) - fs_t
+    dif = attack_instance_feature - target_instance_feature
     loss = torch.sum(torch.mul(dif, dif))
     loss.backward()
 
-    x2 = x.clone()
-    # x2-=(x.grad*lr)
-    x2 -= (x.grad * lr)
+    forward_attack_instance = attack_instance.clone()
+    forward_attack_instance -= (attack_instance.grad * lr)
+
+    # 원본 이미지 유지를 위한 hyperparameter 설정
+    beta = beta_0 * 4096 ** 2 / (3 * 224 * 224) ** 2  # 7.4
 
     # Backward Step:
-    x = (x2 + lr * beta * base_instance) / (1 + lr * beta)
+    attack_instance = (forward_attack_instance + lr * beta * base_instance) / (1 + lr * beta)
 
-    return x, loss.item()
+    return attack_instance, loss.item()
 
+
+def feature_loss_compare(extractor, instance_a, instance_b):
+    instance_a_feature = extractor(instance_a.view(1, *instance_a.shape))[0]
+    instance_b_feature = extractor(instance_b.view(1, *instance_b.shape))[0]
+
+    dif = instance_a_feature - instance_b_feature
+    loss = torch.sum(torch.mul(dif, dif))
+
+    return loss.item()
+
+
+#
+# def poison_res(arch, feature_extractor, attack_instance, base_instance, target_instance, beta_0=0.2, lr=0.0001):
+#
+#     return
+
+
+# x = base_instance
+# for i in range(1000):
+#     x, loss = poison(feature_space, x.detach(), base_instance, target_instance)
+#     if i % 50 == 0:
+#         print(loss)
+
+
+def main():
+    # cuda 사용을 위한 device 지정
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    # input image 지정
+    img_size = (224, 224)
+
+    # image 경로
+    base = './dataset/base.jpg'
+    target = './dataset/target.jpg'
+
+    # image read (cv2 , BGR to RGB)
+    base_image = img_read(base)
+    target_image = img_read(target)
+
+    # image를 tensor 형태로 변환
+    base_instance = img_to_tensor(base_image, img_size)
+    target_instance = img_to_tensor(target_image, img_size)
+
+    # 사용할 모델 지정 및 pretrained extractor 추출
+    model = vgg16(pretrained=True)
+    # model = resnet50(pretrained=True)
+    extractor = feature_extractor('vggnet', model)
+    # extractor = feature_extractor('resnet', model)
+
+    # GPU 사용 (cuda)를 위해 extractor 및 instance gpu로 이동
+    extractor = extractor.to(device)
+    base_instance = base_instance.to(device)
+    target_instance = target_instance.to(device)
+
+    # poison frogs 를 위해 초기 attack_instance (attack sample)을 base_instance로 초기화
+    attack_instance = base_instance
+    for i in range(200):
+        attack_instance, loss = poison_frogs(extractor, attack_instance.detach(), base_instance, target_instance)
+        if i % 50 == 0:
+            print(loss)
+
+    # attack, base, target instance 비교를 위한 시각화
+    out = make_torch_grid(attack_instance, base_instance, target_instance)
+    tensor_imshow(out.detach().cpu(), title="attack - base - target")
+
+    # 각 instance 별 loss값 비교
+    print("Base instance - Initial Attack instance: {}".format(feature_loss_compare(extractor, base_instance, base_instance)))
+    print("Base instance - Target instance: {}".format(feature_loss_compare(extractor, base_instance, target_instance)))
+    print("Base instance - Attack instance: {}".format(feature_loss_compare(extractor, base_instance, attack_instance)))
+    print("Target instance - Attack instance: {}".format(feature_loss_compare(extractor, target_instance, attack_instance)))
+
+
+if __name__ == '__main__':
+    main()
 

@@ -22,7 +22,7 @@ model_urls = {
 
 class VGG(nn.Module):
 
-    def __int__(self, features, num_classes=1000, init_weights=True):
+    def __init__(self, features, num_classes=1000, init_weights=True):
         super(VGG, self).__init__()
         self.features = features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
@@ -36,12 +36,16 @@ class VGG(nn.Module):
             nn.Linear(4096, num_classes),
         )
 
+        if init_weights:
+            self._initialize_weights()
+
     def forward(self, x):
         x = self.features(x)
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
         output = self.classifier(x)
-        return output, x
+        # output = self.penultimate_layer(output)
+        return output
 
     def _initialize_weights(self):
         for module in self.modules():

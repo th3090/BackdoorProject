@@ -9,7 +9,7 @@ def image_name_change(data_dir):
     for folder in data_folder:
         files = glob.glob(data_dir + "/" + folder + '/*')
         for i, f in enumerate(files):
-            os.rename(f, os.path.join(self.data_dir + '/' + folder, '{}{:04d}.jpg'.format(folder, i + 1)))
+            os.rename(f, os.path.join(data_dir + '/' + folder, '{}{:04d}.jpg'.format(folder, i + 1)))
 
 
 # 이미지 파일 좌우 반전

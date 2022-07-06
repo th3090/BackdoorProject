@@ -1,9 +1,17 @@
 import os
 
 import numpy as np
+import torch
 import torchvision
 from matplotlib import pyplot as plt
 from torchvision import datasets, models, transforms
+import cv2
+
+
+def img_read(path):
+    img = cv2.imread(path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img
 
 
 def image_compare_show(base_image, target_image):
@@ -78,3 +86,17 @@ def attack_image_save(instance, path, name):
     """
     image = instance.detach().cpu()
     torchvision.utils.save_image(image, os.path.join(path, name))
+
+
+def make_torch_grid(*args):
+    instance_list = [*args]
+    out = torchvision.utils.make_grid(instance_list)
+    return out
+
+# # Get a batch of training data
+# inputs, classes = next(iter(train_loader))
+#
+# # Make a grid from batch
+# out = torchvision.utils.make_grid(inputs)
+#
+# imshow(out)
